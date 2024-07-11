@@ -1,0 +1,135 @@
+@startuml
+
+:Authorized user: as au
+:Unauthorized user: as uu
+
+package Authorize {
+    usecase captcha as "Captcha"
+    package Registration {
+        usecase registration as "Registration"
+        usecase registration_data as "Login, email, password"
+        usecase confirm_email as "Confirm email"
+
+        registration <.down- registration_data : includes
+        registration <.-down- confirm_email : includes
+        registration <.-down- captcha : includes
+    }
+
+    package Login {
+        usecase login as "Login"
+        usecase login_data as "Login, password"
+        usecase 2factor as "Authorize email"
+
+        login <.down- login_data : includes
+        login <.down- captcha : includes
+        login <.down- 2factor : includes
+    }
+}
+
+
+usecase show_all_posts as "Show all posts"
+usecase show_post as "Show post"
+usecase show_comments as "Show comments"
+
+show_all_posts <.down- show_post : extends
+show_post <.down- show_comments : extends
+
+package Reports {
+    usecase reports as "Reports"
+    usecase report_any_post as "Report any post"
+    usecase report_any_post_details as "Reported post,
+    Category
+    Body"
+    usecase report_any_user as "Report any user"
+    usecase report_any_user_details as "Reported user,
+    Category
+    Body"
+
+    reports <-down. report_any_post : extends
+    reports <-down. report_any_user : extends
+    report_any_post <-down. report_any_post_details : includes
+    report_any_user <-down. report_any_user_details : includes
+}
+
+uu -down- registration
+uu -down- login
+uu -down- show_all_posts
+uu -down- reports
+
+usecase logout as "Logout"
+usecase comment_crud as "CRUD comments"
+usecase rate_posts as "Rate posts"
+
+package RequestRole {
+    usecase rr as "Request role"
+    usecase rr_data as "Expected role, body, date"
+    usecase rr_crud as "CRUD requests role"
+
+    rr <-down. rr_data : includes
+    rr <-down. rr_crud : extends
+}
+
+au -up- reports
+au -up- show_all_posts
+au -down- logout
+au -down- comment_crud
+au -down- rr
+au -down- rate_posts
+
+newpage
+
+:Writer: as wu
+:Editor: as eu
+:Moderator: as mu
+:Admin: as au
+:Superuser: as su
+
+package Posts {
+    usecase posts_crud as "CRUD posts"
+    usecase answer_moderator_comment as "Answer moderation comment"
+    usecase edit_any_post as "Edit any post"
+    usecase any_comment_crud as "CRUD on any comment"
+    usecase show_all_reports as "Show all reports"
+    usecase restrict_any_post as "Restrict any post"
+    usecase release_any_post as "Restrict any post"
+    usecase moderation_comment as "Leave moderation comment"
+    usecase lock_comments as "Lock comments"
+    usecase unlock_comments as "Unlock comments"
+}
+
+package Admin {
+    usecase rr as "Role request"
+    usecase show_rr as "Show all requests"
+    usecase approve_rr as "Approve all requests"
+    usecase disapprove_rr as "Disapprove all requests"
+    usecase rud_user as "RUD users"
+
+    rr <-down. show_rr : extends
+    rr <-down. approve_rr : extends
+    rr <-down. disapprove_rr : extends
+}
+
+usecase give_any_role as "Give any role"
+usecase access_to_admin_panel as "Access to admin panel"
+
+wu -down- posts_crud
+wu -down- answer_moderator_comment
+
+eu -down- answer_moderator_comment
+eu -down- edit_any_post
+
+mu -down- any_comment_crud
+mu -down- show_all_reports
+mu -down- restrict_any_post
+mu -down- release_any_post
+mu -down- moderation_comment
+mu -down- lock_comments
+mu -down- unlock_comments
+
+au -down- rr
+au -down- rud_user
+
+su -down- give_any_role
+su -down- access_to_admin_panel
+
+@enduml

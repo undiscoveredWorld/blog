@@ -1,0 +1,109 @@
+@startuml
+
+enum Roles {
+    WRITER
+    EDITOR
+    MODERATOR
+    ADMIN
+    SUPERUSER
+}
+
+class User {
+    + id
+    + login (str 20)
+    + hashed_password (str)
+    + email (str 50)
+    + roles (Roles[])
+    + is_activate
+    + is_banned
+    + is_silent
+}
+
+class Attachment {
+    name_id(str 100, PK)
+}
+
+class Body {
+    + id
+    + text(str)
+    + attachments(Attachment[])
+}
+
+class ReportCategory {
+    + name(PK)
+}
+
+abstract Report {
+    + category_name
+    + body_id (int)
+    + date(date)
+    + user_id(int or null)
+}
+
+class ReportPost {
+    + post_id
+}
+
+class ReportUser {
+    + reported_user_id
+}
+
+enum RoleRequestStatus {
+    IN_WAIT
+    APPROVED
+    DISAPPROVED
+}
+
+class RoleRequest {
+    + user_id(int)
+    + role(Roles)
+    + body_id
+    + date(date
+    + status(RoleRequestStatus)
+}
+
+class Post {
+    + id
+    + owner_id(int, FK to User)
+    + title(str 50)
+    + body_id
+    + rating(int)
+    + is_restricted
+    + is_comments_open
+}
+
+class Comment {
+    + post_id
+    + parent_comment_id
+    + depth
+    + owner_id
+    + is_delete
+    + body_id
+}
+
+class ModerationComment {
+    + post_id
+    + parent_comment_id
+    + depth
+    + owner_id
+    + is_delete
+    + body_id
+}
+
+User -left- Roles
+User -down- Report
+User -down- RoleRequest
+User -down- Post
+User -down- Comment
+User -down- ModerationComment
+
+Body -down- Attachment
+Post -down- Body
+
+Report -left- ReportCategory
+Report <|-down- ReportPost
+Report <|-down- ReportUser
+
+RoleRequest -down- RoleRequestStatus
+
+@enduml
