@@ -8,7 +8,13 @@ asgiref==3.8.1
     # via django
 django==5.0.7
     # via -r requirements.in
+psycopg[binary]==3.2.1
+    # via -r requirements.in
+psycopg-binary==3.2.1
+    # via psycopg
 python-dotenv==1.0.1
     # via -r requirements.in
 sqlparse==0.5.0
     # via django
+typing-extensions==4.12.2
+    # via psycopg
