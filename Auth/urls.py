@@ -1,12 +1,14 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 
 from . import views
 
 app_name = "Auth"
 
+router = DefaultRouter()
+router.register(r"users", views.UserViewSet, basename="user")
+
 urlpatterns = [
-    path("register/", views.SignUpView.as_view(), name="register"),
-    path("login/", views.SignInView.as_view(), name="login"),
-    path("logout/", views.SignOutView.as_view(), name="logout"),
-    path("profile/<int:id>", views.ProfileView.as_view(), name="profile")
+    path("", include(router.urls)),
+    path("profile/<int:id>", views.ProfileView.as_view(), name="profile"),
 ]
