@@ -1,8 +1,13 @@
-from django.http import HttpResponse
-from django.template import loader
+from rest_framework import viewsets
+
+from Posts import serializers, models
 
 
-# Create your views here.
-def list_posts(request):
-    template = loader.get_template('posts/list.html')
-    return HttpResponse(template.render({}, request))
+class PostViewSet(viewsets.ModelViewSet):
+    queryset = models.Post.objects.all()
+    serializer_class = serializers.PostSerializer
+
+
+class BodyViewSet(viewsets.ModelViewSet):
+    queryset = models.Body.objects.all()
+    serializer_class = serializers.BodySerializer
