@@ -1,11 +1,11 @@
 from django.views.generic.detail import DetailView
 from django.contrib.auth.models import User
-from rest_framework import viewsets
 
+from common.views import ModelViewSetWithCustomMixin
 from .serializers import UserSerializer
 
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(ModelViewSetWithCustomMixin):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
