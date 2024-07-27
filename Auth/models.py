@@ -36,7 +36,8 @@ def get_generator_of_unique_user(prefix: str) -> (callable or None):
 
 
 def create_user(**kwargs):
-    default_attrs = {"username": "test", "password": "00"}
+    default_attrs = {"username": "test", "password": "00", "email": "test@mail.ru"}
     kwargs_for_user = {**default_attrs, **kwargs}
     user: User = User.objects.create_user(**kwargs_for_user)
+    UserWithRoles.objects.create(user=user, roles=[])
     return user
