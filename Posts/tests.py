@@ -1,24 +1,25 @@
 from django.db import models
+from django.test import TestCase
 
 from common.tests import (
-    CRUDTestCase,
+    TestCRUDMixin,
     MethodsForCRUDTestCase,
 )
 from .models import (
     Body,
     Post,
 )
-from Auth.models import get_generator_of_unique_user, create_user
-
-unique_user_gen = get_generator_of_unique_user("user")
+from Auth.test_utils import (
+    create_user,
+    create_unique_user
+)
 
 
 class MethodsForPostsTest(MethodsForCRUDTestCase):
-
     @staticmethod
     def get_create_dict() -> dict:
         body = MethodsForBodiesTest.create_instance()
-        user = unique_user_gen()
+        user = create_unique_user()
         create_dict = {
             "owner": user.id,
             "body": body.id,
@@ -30,7 +31,7 @@ class MethodsForPostsTest(MethodsForCRUDTestCase):
 
     @staticmethod
     def get_list_to_try_change() -> list[dict[str, any]]:
-        user = create_user(username="unique username")
+        user = create_user(username="unique-username")
         body = MethodsForBodiesTest.create_instance()
         list_to_try_change: list[dict[str, any]] = [
             {"owner": user.id},
@@ -45,7 +46,7 @@ class MethodsForPostsTest(MethodsForCRUDTestCase):
     @staticmethod
     def create_instance(**kwargs) -> models.Model:
         body = Body.objects.create(text="Test text")
-        user = unique_user_gen()
+        user = create_unique_user()
         default_attrs = {
             "owner": user,
             "body": body,
@@ -69,7 +70,7 @@ class MethodsForPostsTest(MethodsForCRUDTestCase):
         }
 
 
-class PostsTestCase(CRUDTestCase):
+class PostsTestCase(TestCase, TestCRUDMixin):
     path: str = "/posts/"
     methods: type[MethodsForCRUDTestCase] = MethodsForPostsTest
     instance_class: type[models.Model] = Post
@@ -107,7 +108,7 @@ class MethodsForBodiesTest(MethodsForCRUDTestCase):
         }
 
 
-class BodiesTestCase(CRUDTestCase):
+class BodiesTestCase(TestCase, TestCRUDMixin):
     path: str = "/bodies/"
     instance_class: type[models.Model] = Body
     methods: type[MethodsForCRUDTestCase] = MethodsForBodiesTest
