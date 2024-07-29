@@ -1,9 +1,13 @@
 from django.db import models
 from django.test import TestCase
+from rest_framework.test import APIClient
 
+from Auth.enums import Role
 from common.tests import (
     TestCRUDMixin,
     MethodsForCRUDTestCase,
+    TestUniqueValidationMixin,
+    TestInvalidInputValidationMixin,
 )
 from .models import (
     Body,
@@ -11,7 +15,8 @@ from .models import (
 )
 from Auth.test_utils import (
     create_user,
-    create_unique_user
+    create_unique_user,
+    give_role,
 )
 
 
@@ -20,6 +25,7 @@ class MethodsForPostsTest(MethodsForCRUDTestCase):
     def get_create_dict() -> dict:
         body = MethodsForBodiesTest.create_instance()
         user = create_unique_user()
+        give_role(user, Role.WRITER)
         create_dict = {
             "owner": user.id,
             "body": body.id,
@@ -32,6 +38,7 @@ class MethodsForPostsTest(MethodsForCRUDTestCase):
     @staticmethod
     def get_list_to_try_change() -> list[dict[str, any]]:
         user = create_user(username="unique-username")
+        give_role(user, Role.WRITER)
         body = MethodsForBodiesTest.create_instance()
         list_to_try_change: list[dict[str, any]] = [
             {"owner": user.id},
@@ -39,7 +46,7 @@ class MethodsForPostsTest(MethodsForCRUDTestCase):
             {"owner": user.id, "body": body.id},
             {"title": "Updated"},
             {"is_restricted": True},
-            {"rating": 100}
+            {"rating": 10}
         ]
         return list_to_try_change
 
@@ -47,6 +54,7 @@ class MethodsForPostsTest(MethodsForCRUDTestCase):
     def create_instance(**kwargs) -> models.Model:
         body = Body.objects.create(text="Test text")
         user = create_unique_user()
+        give_role(user, Role.WRITER)
         default_attrs = {
             "owner": user,
             "body": body,
@@ -112,3 +120,56 @@ class BodiesTestCase(TestCase, TestCRUDMixin):
     path: str = "/bodies/"
     instance_class: type[models.Model] = Body
     methods: type[MethodsForCRUDTestCase] = MethodsForBodiesTest
+
+
+class PostsValidationTestCase(TestCase,
+                              TestUniqueValidationMixin,
+                              TestInvalidInputValidationMixin):
+    to_test_unique: dict[str, any] = {
+        "title": "Test title",
+    }
+    path: str = "/posts/"
+    to_test_invalid: dict[str, list[any]] = {
+        "title": ["", "a", 4, "aa", "aaa+", "a"*51],
+        "body": ["sdf"],
+        "owner": ["sdf"],
+        "is_restricted": ["sdf"],
+        "rating": [-1, 11, 100, "sdf"]
+    }
+    to_test_valid: dict[str, list[any]] = {
+        "title": ["test title", "Test title", "Test2 title", "Test,title", "Tset.",
+                  "tse_t", "sdf-f"],
+        "is_restricted": [True, False],
+        "rating": [1, 5, 6.4, 9.234]
+    }
+
+    def test_unique_validation(self):
+        body = MethodsForBodiesTest.create_instance()
+        self.to_test_unique["body"] = body.id
+
+        super().test_unique_validation()
+
+    def test_invalid_input_validation(self):
+        body = MethodsForBodiesTest.create_instance()
+        owner = create_unique_user()
+        give_role(owner, Role.WRITER)
+        user = create_unique_user()
+        self.to_test_valid["body"] = [body.id]
+        self.to_test_valid["owner"] = [owner.id]
+        self.to_test_invalid["owner"].append(user.id)
+        super().test_invalid_input_validation()
+
+    def test_rating_format(self):
+        client = APIClient()
+        response = client.post(self.path, self.generate_unique_dict(rating=5.5532345))
+        post = Post.objects.get(id=response.data["id"])
+        self.assertEqual(5.55, post.rating)
+
+    @staticmethod
+    def clear_instances():
+        Post.objects.all().delete()
+
+    @staticmethod
+    def generate_unique_dict(**kwargs) -> dict[str, any]:
+        create_dict = MethodsForPostsTest.get_create_dict()
+        return {**create_dict, **kwargs}

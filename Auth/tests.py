@@ -132,3 +132,8 @@ class UsersValidationTestCase(TestCase,
     @staticmethod
     def generate_unique_dict(**kwargs):
         return generate_dict_to_request_to_create_unique_user(**kwargs)
+
+    @staticmethod
+    def clear_instances():
+        pass
+

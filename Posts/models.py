@@ -8,7 +8,7 @@ class Body(models.Model):
 
 class Post(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
-    title = models.CharField(max_length=50)
-    body = models.ForeignKey(Body, on_delete=models.CASCADE)
+    title = models.CharField(max_length=50, unique=True)
+    body = models.OneToOneField(Body, on_delete=models.CASCADE)
     is_restricted = models.BooleanField(default=False)
     rating = models.FloatField(default=0)

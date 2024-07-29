@@ -1,3 +1,6 @@
+from django.contrib.auth.models import User
+
+from Auth.enums import Role
 from Auth.models import UserSerializer, UserWithRoles
 
 prefix = "test-user"
@@ -34,3 +37,11 @@ def _create_user_with_serializer(kwargs_for_user):
 def create_unique_user(**kwargs):
     attrs = generate_dict_to_request_to_create_unique_user(**kwargs)
     return create_user(**attrs)
+
+
+def give_role(user: User, role: Role) -> list[Role]:
+    user_with_roles = UserWithRoles.objects.get(user=user)
+    if role not in user_with_roles.roles:
+        user_with_roles.roles.append(role)
+        user_with_roles.save()
+    return user_with_roles.roles

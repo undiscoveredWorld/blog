@@ -146,6 +146,11 @@ class TestValidationMixin(ABC):
         """
         pass
 
+    @staticmethod
+    @abstractmethod
+    def clear_instances():
+        pass
+
 
 class TestUniqueValidationMixin(TestValidationMixin, ABC):
     """Mixin for validation of unique tests.
@@ -167,6 +172,7 @@ class TestUniqueValidationMixin(TestValidationMixin, ABC):
             self.assertEqual(400, response.status_code,
                              msg=f"Created not unique instance."
                                  f"Case: {key}:{value}")
+            self.clear_instances()
 
 
 class TestInvalidInputValidationMixin(TestValidationMixin, ABC):
@@ -194,6 +200,7 @@ class TestInvalidInputValidationMixin(TestValidationMixin, ABC):
 
                 msg = get_msg(value=value, field=key)
                 self.assertEqual(expected_code, response.status_code, msg=msg)
+                self.clear_instances()
 
     @staticmethod
     def _get_invalid_test_assertion_msg(value: str, field: str):
