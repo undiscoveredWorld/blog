@@ -1,17 +1,24 @@
-from django.views.generic.detail import DetailView
 from django.contrib.auth.models import User
 from rest_framework import status
 from rest_framework.views import APIView
+from rest_framework.viewsets import GenericViewSet
 from rest_framework.response import Response
 
-from common.views import ModelViewSetWithCustomMixin
+from Posts.models import Post
+from Posts.serializers import PostSerializer
+from common.views import (
+    ModelViewSetWithCustomMixin,
+    ReturnIdOnlyInCreateMixin,
+)
 from .models import UserWithRoles, UserSerializer
 from .enums import Role
+from .permissions import IsSuperUserOrReadOnly
 
 
 class UserViewSet(ModelViewSetWithCustomMixin):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [IsSuperUserOrReadOnly]
 
     def create(self, request, *args, **kwargs):
         response = super().create(request, *args, **kwargs)
@@ -20,12 +27,26 @@ class UserViewSet(ModelViewSetWithCustomMixin):
         UserWithRoles.objects.create(user=user, roles=[])
         return response
 
+    def retrieve(self, request, *args, **kwargs):
+        response = super().retrieve(request, *args, **kwargs)
 
-class ProfileView(DetailView):
-    template_name = 'auth/profile.html'
-    model = User
-    context_object_name = 'profile'
-    pk_url_kwarg = 'id'
+        user_id = response.data.get("id")
+        user_roles = UserWithRoles.objects.get(user_id=user_id)
+        posts = Post.objects.filter(owner_id=user_id).all()
+        posts_serializer = PostSerializer(posts, many=True)
+
+        data = {
+            "roles": user_roles.roles,
+            "posts": posts_serializer.data,
+            **response.data
+        }
+        return Response(data)
+
+
+class RegistrationViewSet(GenericViewSet, ReturnIdOnlyInCreateMixin):
+    serializer_class = UserSerializer
+    http_method_names = ["post"]
+    queryset = User.objects.all()
 
 
 class GiveRoleView(APIView):

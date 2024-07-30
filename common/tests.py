@@ -5,6 +5,13 @@ from rest_framework.response import Response
 from rest_framework.test import APIClient
 
 
+class TestMixin(ABC):
+    @staticmethod
+    @abstractmethod
+    def get_client(**kwargs) -> APIClient:
+        pass
+
+
 class MethodsForCRUDTestCase(ABC):
     """This class joins methods needs for CRUD test."""
 
@@ -52,7 +59,7 @@ class MethodsForCRUDTestCase(ABC):
         pass
 
 
-class TestCRUDMixin:
+class TestCRUDMixin(TestMixin, ABC):
     """Mixin extends TestCase by CRUD tests.
 
     Variables:
@@ -64,7 +71,7 @@ class TestCRUDMixin:
 
     def test_create(self):
         create_dict = self.methods.get_create_dict()
-        client = APIClient()
+        client = self.get_client()
         response: Response = client.post(self.path, create_dict)
         self._test_create_response(response)
 
@@ -84,8 +91,8 @@ class TestCRUDMixin:
         self._test_list_to_try_change(list_to_try_change)
 
     def _test_list_to_try_change(self, list_to_try_change: list[dict[str, any]]):
-        client = APIClient()
         for case in list_to_try_change:
+            client = self.get_client()
             instance = self.methods.create_instance()
             dict_request = {**case}
             response: Response = client.patch(f"{self.path}{instance.id}/", dict_request)
@@ -101,36 +108,38 @@ class TestCRUDMixin:
             self.instance_class.objects.all().delete()
 
     def test_delete(self):
+        client = self.get_client()
+        start_count_of_instances = self.instance_class.objects.all().count()
         instance = self.methods.create_instance()
-        client = APIClient()
         response: Response = client.delete(f"{self.path}{instance.id}/")
         self.assertEqual(204, response.status_code,
                          msg=f"Cannot delete instance.\n"
                              f"Details: {response.data}")
-        self.assertEqual(0, len(self.instance_class.objects.all()),
+        self.assertEqual(start_count_of_instances, self.instance_class.objects.count(),
                          msg=f"Request is successful, but instance were not deleted")
 
     def test_get_one(self):
         instance = self.methods.create_instance()
-        client = APIClient()
+        client = self.get_client()
         response: Response = client.get(f"{self.path}{instance.id}/")
         self.assertEqual(200, response.status_code,
                          msg=f"Cannot get one instance by id {instance.id}.\n"
                              f"Details: {response.data}")
 
     def test_get_all(self):
+        client = self.get_client()
+        start_count_of_instances = self.instance_class.objects.all().count()
         self.methods.create_instance()
         self.methods.create_instance()
-        client = APIClient()
         response: Response = client.get(f"{self.path}")
         self.assertEqual(200, response.status_code,
                          msg=f"Cannot get all instances."
                              f"Details: {response.data}")
-        self.assertEqual(2, len(response.data),
+        self.assertEqual(start_count_of_instances + 2, len(response.data),
                          msg=f"Response contains invalid count of instances")
 
 
-class TestValidationMixin(ABC):
+class TestValidationMixin(TestMixin, ABC):
     """Abstract class for validation tests mixins.
 
     :var path: to api view to test. Must ends by '/'
@@ -160,8 +169,8 @@ class TestUniqueValidationMixin(TestValidationMixin, ABC):
     to_test_unique: dict[str, any]
 
     def test_unique_validation(self):
-        client = APIClient()
         for key, value in self.to_test_unique.items():
+            client = self.get_client()
             to_create_request = self.generate_unique_dict(**{key: value})
             response = client.post(f"{self.path}", data=to_create_request)
             self.assertEqual(201, response.status_code,
@@ -192,9 +201,9 @@ class TestInvalidInputValidationMixin(TestValidationMixin, ABC):
 
     def _test_items(self, dictionary: dict[str, list[str]],
                     expected_code: int, get_msg: callable) -> None:
-        client: APIClient = APIClient()
         for key, values_list in dictionary.items():
             for value in values_list:
+                client = self.get_client()
                 to_create_request = self.generate_unique_dict(**{key: value})
                 response = client.post(f"{self.path}", data=to_create_request)
 
@@ -209,3 +218,77 @@ class TestInvalidInputValidationMixin(TestValidationMixin, ABC):
     @staticmethod
     def _get_valid_test_assertion_msg(value: str, field: str):
         return f"Did not accepted valid value '{value}' for {field} field"
+
+
+class PermissionTestCaseMixin(ABC):
+    """Mixin for testing permissions.
+
+    :var path: Path to the endpoint, ends by '/'
+    :var successful_client_getters: dict where key is the method name in lower case and value is getter of client.
+    :var unsuccessful_client_getters: dict where key is the method name in lower case and value is getter of client.
+
+    For any used in successful_client_getters and unsuccessful_client_getters methods needs to realize implementation
+    suitable method.
+    Implementation note: any implementation must be repeatable, contains instance clearer.
+    If method for testing is needn't for you, you should implement in your subclass signature only
+    """
+
+    path: str
+    successful_client_getters: dict[str, list[callable]]
+    unsuccessful_client_getters: dict[str, list[callable]]
+
+    def test_successful_authorization(self):
+        self._successful_test_method("get", self._test_get)
+        self._successful_test_method("get_one", self._test_get_one)
+        self._successful_test_method("post", self._test_post)
+        self._successful_test_method("patch", self._test_patch)
+        self._successful_test_method("put", self._test_put)
+        self._successful_test_method("delete", self._test_delete)
+
+    def test_unsuccessful_authorization(self):
+        self._unsuccessful_test_method("get", self._test_get)
+        self._unsuccessful_test_method("get_one", self._test_get_one)
+        self._unsuccessful_test_method("post", self._test_post)
+        self._successful_test_method("patch", self._test_patch)
+        self._successful_test_method("put", self._test_put)
+        self._successful_test_method("delete", self._test_delete)
+
+    def _successful_test_method(self, method: str, method_func: callable) -> None:
+        if method in self.successful_client_getters.keys():
+            for get_client in self.successful_client_getters[method]:
+                client = get_client()
+                response: Response = method_func(client)
+                self.assertNotEqual(None, response)
+                self.assertTrue(response.status_code not in [401, 403])
+
+    def _unsuccessful_test_method(self, method: str, method_func: callable) -> None:
+        if method in self.unsuccessful_client_getters.keys():
+            for get_client in self.unsuccessful_client_getters[method]:
+                client = get_client()
+                response: Response = method_func(client)
+                self.assertNotEqual(None, response)
+                self.assertTrue(response.status_code in [401, 403])
+
+    @abstractmethod
+    def _test_get(self, client: APIClient) -> Response | None:
+        pass
+
+    @abstractmethod
+    def _test_get_one(self, client: APIClient) -> Response | None:
+        pass
+
+    @abstractmethod
+    def _test_post(self, client: APIClient) -> Response | None:
+        pass
+
+    @abstractmethod
+    def _test_patch(self, client: APIClient) -> Response | None:
+        pass
+
+    @abstractmethod
+    def _test_put(self, client: APIClient) -> Response | None:
+        pass
+
+    @abstractmethod
+    def _test_delete(self, client: APIClient) -> Response | None:
+        pass

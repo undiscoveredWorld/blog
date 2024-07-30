@@ -83,6 +83,10 @@ class PostsTestCase(TestCase, TestCRUDMixin):
     methods: type[MethodsForCRUDTestCase] = MethodsForPostsTest
     instance_class: type[models.Model] = Post
 
+    @staticmethod
+    def get_client(**kwargs) -> APIClient:
+        return APIClient()
+
 
 class MethodsForBodiesTest(MethodsForCRUDTestCase):
     @staticmethod
@@ -121,6 +125,10 @@ class BodiesTestCase(TestCase, TestCRUDMixin):
     instance_class: type[models.Model] = Body
     methods: type[MethodsForCRUDTestCase] = MethodsForBodiesTest
 
+    @staticmethod
+    def get_client(**kwargs) -> APIClient:
+        return APIClient()
+    
 
 class PostsValidationTestCase(TestCase,
                               TestUniqueValidationMixin,
@@ -164,6 +172,10 @@ class PostsValidationTestCase(TestCase,
         response = client.post(self.path, self.generate_unique_dict(rating=5.5532345))
         post = Post.objects.get(id=response.data["id"])
         self.assertEqual(5.55, post.rating)
+
+    @staticmethod
+    def get_client(**kwargs) -> APIClient:
+        return APIClient()
 
     @staticmethod
     def clear_instances():
