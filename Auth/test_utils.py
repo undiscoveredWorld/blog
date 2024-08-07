@@ -58,12 +58,27 @@ def create_unique_user(**kwargs):
     return create_user(**attrs)
 
 
+def get_authenticated_client():
+    user = create_unique_user()
+    authenticated_user_client = APIClient()
+    authenticated_user_client.force_authenticate(user)
+    return authenticated_user_client
+
+
 def give_role(user: User, role: Role) -> list[Role]:
     user_with_roles = UserWithRoles.objects.get(user=user)
     if role not in user_with_roles.roles:
         user_with_roles.roles.append(role)
         user_with_roles.save()
     return user_with_roles.roles
+
+
+def get_admin_client():
+    admin_user = create_unique_user()
+    give_role(admin_user, Role.ADMIN)
+    admin_client = APIClient()
+    admin_client.force_authenticate(user=admin_user)
+    return admin_client
 
 
 def create_or_get_superuser() -> User:

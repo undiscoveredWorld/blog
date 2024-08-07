@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.contrib.postgres.fields import ArrayField
 from rest_framework import serializers
 
-from . import enums
+from . import enums, validators
 
 
 class UserWithRoles(models.Model):
@@ -16,6 +16,18 @@ class UserWithRoles(models.Model):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    @staticmethod
+    def validate_username(value):
+        # username contains from 3 to 20 word symbols or number symbols or _ or -
+        pattern = re.compile('^[a-zA-Z0-9_-]{3,20}$')
+        if not pattern.match(value):
+            raise serializers.ValidationError("Username is invalid")
+        return value
+
+    @staticmethod
+    def validate_password(value):
+        return validators.validate_password(value)
+
     def validate_email(self, value):
         self._check_email_is_unique(value)
         self._check_value_is_email(value)
@@ -34,28 +46,43 @@ class UserSerializer(serializers.ModelSerializer):
         if not pattern.match(value):
             raise serializers.ValidationError("Email is invalid")
 
-    def validate_username(self, value):
-        # username contains from 3 to 20 word symbols or number symbols or _ or -
-        pattern = re.compile('^[a-zA-Z0-9_-]{3,20}$')
-        if not pattern.match(value):
-            raise serializers.ValidationError("Username is invalid")
-        return value
-
-    def validate_password(self, value):
-        # password contains least one symbol lower case, one symbol upper case, one non-word symbol.
-        # And length of password more, than 8
-        pattern = re.compile(r'^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?\W).{8,}$')
-        if not pattern.match(value):
-            raise serializers.ValidationError("Password is too week")
-        return value
-
     class Meta:
         model = User
         fields = ('username', 'email', 'password', 'id')
         extra_kwargs = {'email': {'required': True}}
 
 
+class UserUpdateSerializer(serializers.ModelSerializer):
+    def validate_password(self, value):
+        return validators.validate_password(value)
+
+    class Meta:
+        model = User
+        fields = ('password',)
+
+
 class UserWithRolesSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserWithRoles
         fields = ('user', 'roles')
+
+
+class RoleRequest(models.Model):
+    date = models.DateField(auto_now_add=True, null=False, blank=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=False, blank=False)
+    expected_role = models.CharField(choices=enums.Role.choices, null=False, blank=False, max_length=10)
+    status = models.CharField(choices=enums.RoleRequestStatus, null=False, blank=False,
+                              default=enums.RoleRequestStatus.OPENED, max_length=10)
+    message = models.TextField(blank=True, null=False, default="")
+
+
+class RoleRequestCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoleRequest
+        fields = ('expected_role', 'message', 'user', 'id')
+
+
+class RoleRequestGetSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoleRequest
+        fields = ('expected_role', 'message', 'user', 'id', 'date', 'status')

@@ -1,294 +1,107 @@
 from abc import ABC, abstractmethod
-from django.db import models
 
+from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.test import APIClient
 
 
-class TestMixin(ABC):
-    @staticmethod
-    @abstractmethod
-    def get_client(**kwargs) -> APIClient:
-        pass
+class HTTPAsserts(ABC):
+    def assert_http_200(self, response: Response):
+        self.assertEqual(response.status_code, status.HTTP_200_OK,
+                         msg=self._get_assert_http_200_message(response))
 
+    def assert_http_201(self, response: Response):
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED,
+                         msg=self._get_assert_http_201_message(response))
 
-class MethodsForCRUDTestCase(ABC):
-    """This class joins methods needs for CRUD test."""
+    def assert_http_204(self, response: Response):
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT,
+                         msg=self._get_assert_http_204_message(response))
 
-    @staticmethod
-    @abstractmethod
-    def get_create_dict() -> dict:
-        """Get create dict for request.
+    def assert_http_not_3xx_code(self, response: Response):
+        self.assertFalse(300 <= response.status_code < 400,
+                         self._get_assert_http_not_3xx_message(response))
 
-        Uses for test_create only
+    def assert_http_400(self, response: Response):
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST,
+                         msg=self._get_assert_http_400_message(response))
 
-        Returns:
-             dict for creation instance in request body like view
-        """
-        pass
+    def assert_http_200_with_addition(self, response: Response, addition: str):
+        self.assertEqual(response.status_code, status.HTTP_200_OK,
+                         msg=self._get_assert_http_200_message(response) + addition)
 
-    @staticmethod
-    @abstractmethod
-    def get_list_to_try_change() -> list[dict[str, any]]:
-        """Get list of attributes for trying change it in instance via request.
+    def assert_http_201_with_addition(self, response: Response, addition: str):
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED,
+                         msg=self._get_assert_http_201_message(response) + addition)
 
-        Uses for test_update only
+    def assert_http_400_with_addition(self, response: Response, addition: str):
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST,
+                         msg=self._get_assert_http_400_message(response) + addition)
 
-        Returns:
-            list of attributes of instance to be updated in request body. View of it must be like request body.
-        """
+    def assert_http_denied_access_with_addition(self, response: Response, addition: str):
+        self.assertTrue(response.status_code in [401, 403],
+                        msg=self._get_assert_http_denied_access_message(response) + addition)
 
-        pass
+    def assert_http_provided_access_with_addition(self, response: Response, addition: str):
+        self.assertTrue(response.status_code not in [401, 403],
+                        msg=self._get_assert_http_provided_access_message(response) + addition)
 
-    @staticmethod
-    @abstractmethod
-    def create_instance(**kwargs) -> models.Model:
-        """Create and return instance for test.
+    def _get_assert_http_200_message(self, response: Response):
+        return self._invalid_response_message(response)
 
-        Method must be reusable. All unique fields must be redefined by each call
+    def _get_assert_http_201_message(self, response: Response):
+        return self._invalid_response_message(response)
 
-        Returns:
-            instance
-        """
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def return_instance_as_dict_to_request(instance: models.Model) -> dict[str, any]:
-        """Serialize instance to request and return it."""
-        pass
-
-
-class TestCRUDMixin(TestMixin, ABC):
-    """Mixin extends TestCase by CRUD tests.
-
-    Variables:
-        :var path: to api view to test. Must ends by '/'
-    """
-    path: str
-    methods: type[MethodsForCRUDTestCase]
-    instance_class: type[models.Model]
-
-    def test_create(self):
-        create_dict = self.methods.get_create_dict()
-        client = self.get_client()
-        response: Response = client.post(self.path, create_dict)
-        self._test_create_response(response)
-
-    def _test_create_response(self, response: Response) -> None:
-        self.assertEqual(201, response.status_code,
-                         msg=f"Expected invalid code.\n"
-                             f"Details: {response.data}")
-        self.assertEqual(1, len(response.data.keys()),
-                         msg=f"Too much fields: expected 1, got {len(response.data.keys())}")
-        self.assertTrue("id" in response.data.keys(),
-                        msg=f"'id' field is missing in response")
-        self.assertTrue(type(response.data["id"]) is int,
-                        msg=f"'id' field must be int")
-
-    def test_update(self):
-        list_to_try_change: list[dict[str, any]] = self.methods.get_list_to_try_change()
-        self._test_list_to_try_change(list_to_try_change)
-
-    def _test_list_to_try_change(self, list_to_try_change: list[dict[str, any]]):
-        for case in list_to_try_change:
-            client = self.get_client()
-            instance = self.methods.create_instance()
-            dict_request = {**case}
-            response: Response = client.patch(f"{self.path}{instance.id}/", dict_request)
-            self.assertEqual(200, response.status_code,
-                             msg=f"Cannot update instance in the case {case}.\n"
-                                 f"Detail: {response.data}")
-            for key, value in case.items():
-                instance_to_check = self.instance_class.objects.get(id=instance.id)
-                instance_to_check_dict = self.methods.return_instance_as_dict_to_request(instance_to_check)
-                self.assertEqual(value, instance_to_check_dict[key],
-                                 msg=f"Request updated instance invalid or response is invalid.\n"
-                                     f"Expected: {instance_to_check_dict[key]}, Received: {value}. Field: {key}")
-            self.instance_class.objects.all().delete()
-
-    def test_delete(self):
-        client = self.get_client()
-        start_count_of_instances = self.instance_class.objects.all().count()
-        instance = self.methods.create_instance()
-        response: Response = client.delete(f"{self.path}{instance.id}/")
-        self.assertEqual(204, response.status_code,
-                         msg=f"Cannot delete instance.\n"
-                             f"Details: {response.data}")
-        self.assertEqual(start_count_of_instances, self.instance_class.objects.count(),
-                         msg=f"Request is successful, but instance were not deleted")
-
-    def test_get_one(self):
-        instance = self.methods.create_instance()
-        client = self.get_client()
-        response: Response = client.get(f"{self.path}{instance.id}/")
-        self.assertEqual(200, response.status_code,
-                         msg=f"Cannot get one instance by id {instance.id}.\n"
-                             f"Details: {response.data}")
-
-    def test_get_all(self):
-        client = self.get_client()
-        start_count_of_instances = self.instance_class.objects.all().count()
-        self.methods.create_instance()
-        self.methods.create_instance()
-        response: Response = client.get(f"{self.path}")
-        self.assertEqual(200, response.status_code,
-                         msg=f"Cannot get all instances."
-                             f"Details: {response.data}")
-        self.assertEqual(start_count_of_instances + 2, len(response.data),
-                         msg=f"Response contains invalid count of instances")
-
-
-class TestValidationMixin(TestMixin, ABC):
-    """Abstract class for validation tests mixins.
-
-    :var path: to api view to test. Must ends by '/'
-    """
-    path: str
+    def _get_assert_http_204_message(self, response: Response):
+        return self._invalid_response_message(response)
 
     @staticmethod
-    @abstractmethod
-    def generate_unique_dict(**kwargs) -> dict[str, any]:
-        """Return dict to multipy creating of instances.
-
-        :arg kwargs: Attributes for instance, that will be applied to instance over default
-        """
-        pass
+    def _invalid_response_message(response: Response):
+        if hasattr(response, "data"):
+            return f"Invalid response. Detail: {response.data}"
+        else:
+            return "Invalid response"
 
     @staticmethod
-    @abstractmethod
-    def clear_instances():
-        pass
-
-
-class TestUniqueValidationMixin(TestValidationMixin, ABC):
-    """Mixin for validation of unique tests.
-
-    :var to_test_unique: dict, where keys are field names and values are a values, with that create instance is possibly
-    """
-    to_test_unique: dict[str, any]
-
-    def test_unique_validation(self):
-        for key, value in self.to_test_unique.items():
-            client = self.get_client()
-            to_create_request = self.generate_unique_dict(**{key: value})
-            response = client.post(f"{self.path}", data=to_create_request)
-            self.assertEqual(201, response.status_code,
-                             msg=f"Cannot create first instance(unique)\n"
-                                 f"Details: {response.data}.\n"
-                                 f"Case: {key}:{value}")
-            response = client.post(f"{self.path}", data=to_create_request)
-            self.assertEqual(400, response.status_code,
-                             msg=f"Created not unique instance."
-                                 f"Case: {key}:{value}")
-            self.clear_instances()
-
-
-class TestInvalidInputValidationMixin(TestValidationMixin, ABC):
-    """Mixin for validation of invalid/valid input tests.
-
-    :var to_test_invalid: dict, where keys are field names and values are lists of invalid field values
-    :var to_test_valid: dict, where keys are field names and values are lists of valid field values
-    """
-    to_test_invalid: dict[str, list[any]]
-    to_test_valid: dict[str, list[any]]
-
-    def test_invalid_input_validation(self):
-        self._test_items(dictionary=self.to_test_invalid, expected_code=400,
-                         get_msg=self._get_invalid_test_assertion_msg)
-        self._test_items(dictionary=self.to_test_valid, expected_code=201,
-                         get_msg=self._get_valid_test_assertion_msg)
-
-    def _test_items(self, dictionary: dict[str, list[str]],
-                    expected_code: int, get_msg: callable) -> None:
-        for key, values_list in dictionary.items():
-            for value in values_list:
-                client = self.get_client()
-                to_create_request = self.generate_unique_dict(**{key: value})
-                response = client.post(f"{self.path}", data=to_create_request)
-
-                msg = get_msg(value=value, field=key)
-                self.assertEqual(expected_code, response.status_code, msg=msg)
-                self.clear_instances()
+    def _get_assert_http_not_3xx_message(response: Response):
+        if hasattr(response, "data"):
+            return f"{response.status_code}:{response.data}"
+        else:
+            return f"3xx code alert"
 
     @staticmethod
-    def _get_invalid_test_assertion_msg(value: str, field: str):
-        return f"Accepted invalid value '{value}' for {field} field"
+    def _get_assert_http_400_message(response: Response):
+        if hasattr(response, "data"):
+            return f"Response must be 400. Detail: {response.data}"
+        else:
+            return "Response must be 400"
 
     @staticmethod
-    def _get_valid_test_assertion_msg(value: str, field: str):
-        return f"Did not accepted valid value '{value}' for {field} field"
+    def _get_assert_http_denied_access_message(response: Response):
+        if hasattr(response, "data"):
+            return f"Access not denied. Detail: {response.status_code}-{response.data}"
+        else:
+            return "Access not denied"
 
-
-class PermissionTestCaseMixin(ABC):
-    """Mixin for testing permissions.
-
-    :var path: Path to the endpoint, ends by '/'
-    :var successful_client_getters: dict where key is the method name in lower case and value is getter of client.
-    :var unsuccessful_client_getters: dict where key is the method name in lower case and value is getter of client.
-
-    For any used in successful_client_getters and unsuccessful_client_getters methods needs to realize implementation
-    suitable method.
-    Implementation note: any implementation must be repeatable, contains instance clearer.
-    If method for testing is needn't for you, you should implement in your subclass signature only
-    """
-
-    path: str
-    successful_client_getters: dict[str, list[callable]]
-    unsuccessful_client_getters: dict[str, list[callable]]
-
-    def test_successful_authorization(self):
-        self._successful_test_method("get", self._test_get)
-        self._successful_test_method("get_one", self._test_get_one)
-        self._successful_test_method("post", self._test_post)
-        self._successful_test_method("patch", self._test_patch)
-        self._successful_test_method("put", self._test_put)
-        self._successful_test_method("delete", self._test_delete)
-
-    def test_unsuccessful_authorization(self):
-        self._unsuccessful_test_method("get", self._test_get)
-        self._unsuccessful_test_method("get_one", self._test_get_one)
-        self._unsuccessful_test_method("post", self._test_post)
-        self._successful_test_method("patch", self._test_patch)
-        self._successful_test_method("put", self._test_put)
-        self._successful_test_method("delete", self._test_delete)
-
-    def _successful_test_method(self, method: str, method_func: callable) -> None:
-        if method in self.successful_client_getters.keys():
-            for get_client in self.successful_client_getters[method]:
-                client = get_client()
-                response: Response = method_func(client)
-                self.assertNotEqual(None, response)
-                self.assertTrue(response.status_code not in [401, 403])
-
-    def _unsuccessful_test_method(self, method: str, method_func: callable) -> None:
-        if method in self.unsuccessful_client_getters.keys():
-            for get_client in self.unsuccessful_client_getters[method]:
-                client = get_client()
-                response: Response = method_func(client)
-                self.assertNotEqual(None, response)
-                self.assertTrue(response.status_code in [401, 403])
+    @staticmethod
+    def _get_assert_http_provided_access_message(response: Response):
+        if hasattr(response, "data"):
+            return f"Access not provided. Detail: {response.status_code}-{response.data}"
+        else:
+            return "Access not provided"
 
     @abstractmethod
-    def _test_get(self, client: APIClient) -> Response | None:
+    def assertTrue(self, expression, msg=None):
         pass
 
     @abstractmethod
-    def _test_get_one(self, client: APIClient) -> Response | None:
+    def assertFalse(self, expression, msg=None):
         pass
 
     @abstractmethod
-    def _test_post(self, client: APIClient) -> Response | None:
+    def assertEqual(self, first, second, msg=None):
         pass
 
     @abstractmethod
-    def _test_patch(self, client: APIClient) -> Response | None:
+    def assertNotEqual(self, first, second, msg=None):
         pass
 
-    @abstractmethod
-    def _test_put(self, client: APIClient) -> Response | None:
-        pass
-
-    @abstractmethod
-    def _test_delete(self, client: APIClient) -> Response | None:
-        pass

@@ -7,3 +7,9 @@ class Role(models.TextChoices):
     MODERATOR = 'moderator', 'Moderator'
     ADMIN = 'admin', 'Admin'
     SUPERUSER = 'superuser', 'Superuser'
+
+
+class RoleRequestStatus(models.TextChoices):
+    OPENED = 'opened', 'Opened'
+    APPROVED = 'approved', 'Approved'
+    CANCELLED = 'cancelled', 'Cancelled'
